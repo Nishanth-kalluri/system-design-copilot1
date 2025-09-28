@@ -8,7 +8,6 @@ import { CanvasPane } from '@/components/CanvasPane'
 import { Transcript } from '@/components/Transcript'
 import { Stepper } from '@/components/Stepper'
 import { Controls } from '@/components/Controls'
-import { ApprovalDrawer } from '@/components/ApprovalDrawer'
 
 export default function ProjectPage({ params }: { params: { projectId: string } }) {
   const { data: session } = useSession()
@@ -91,18 +90,21 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       (newMessages) => {
         console.log('Polling received messages:', newMessages.length)
         setMessages(newMessages)
+        // Also update run status when messages update
+        pollRunStatus(runId)
       },
       (error) => {
         console.error('Polling error:', error)
         setConnected(false)
-      }
+      },
+      1500 // Reduce polling interval to 1.5 seconds for more responsiveness
     )
 
     pollerRef.current = poller
     poller.start()
     setConnected(true)
     
-    // Also poll for run status updates
+    // Initial run status update
     pollRunStatus(runId)
   }
 
@@ -139,11 +141,19 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
     if (!runId) return
     
     try {
-      await fetch(`/api/runs/${runId}/step`, {
+      const response = await fetch(`/api/runs/${runId}/step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'NEXT' }),
       })
+      
+      if (response.ok) {
+        // Force immediate update of run status and messages
+        pollRunStatus(runId)
+        if (pollerRef.current) {
+          pollerRef.current.forceUpdate()
+        }
+      }
     } catch (error) {
       console.error('Next step error:', error)
     }
@@ -158,11 +168,19 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
     if (!runId || deepDiveNo > 0) return
     
     try {
-      await fetch(`/api/runs/${runId}/step`, {
+      const response = await fetch(`/api/runs/${runId}/step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'DEEP_DIVE_ONCE' }),
       })
+      
+      if (response.ok) {
+        // Force immediate update of run status and messages
+        pollRunStatus(runId)
+        if (pollerRef.current) {
+          pollerRef.current.forceUpdate()
+        }
+      }
     } catch (error) {
       console.error('Deep dive error:', error)
     }
@@ -300,14 +318,6 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
           />
         </div>
       </div>
-      
-      {/* Approval drawer */}
-      {pendingPatch && (
-        <ApprovalDrawer
-          patch={pendingPatch}
-          onApprove={handleApplyPatch}
-        />
-      )}
     </div>
   )
 }
