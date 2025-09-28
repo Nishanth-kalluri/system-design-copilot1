@@ -27,6 +27,25 @@ interface CallOptions {
   step?: string
 }
 
+// Dynamic token limits based on step complexity
+function getTokenLimitForStep(step?: string, fallbackTokens?: number): number {
+  if (fallbackTokens) return fallbackTokens // Explicit override
+  
+  // Early steps: smaller responses, basic analysis
+  const earlySteps = ['REQUIREMENTS', 'FNFRS', 'ENTITIES']
+  
+  // Complex steps: detailed JSON with patches, comprehensive analysis
+  const complexSteps = ['API', 'HLD', 'DEEPDIVE', 'CONCLUSION']
+  
+  if (step && earlySteps.includes(step)) {
+    return 2048 // 2K tokens for early steps
+  } else if (step && complexSteps.includes(step)) {
+    return 8192 // 8K tokens for complex steps with patches
+  }
+  
+  return 4096 // Default fallback
+}
+
 export async function callGroq(
   input: string | ChatMessage[],
   model: string = DEFAULT_GROQ_MODEL,
@@ -34,15 +53,22 @@ export async function callGroq(
 ): Promise<string> {
   const correlationId = opts.correlationId || generateId()
   const messages: ChatMessage[] = typeof input === 'string' ? [{ role: 'user', content: input }] : input
+  const dynamicTokenLimit = getTokenLimitForStep(opts.step, opts.maxTokens)
 
-  logger.info('LLM call', { correlationId, model, count: messages.length, step: opts.step })
+  logger.info('LLM call', { 
+    correlationId, 
+    model, 
+    count: messages.length, 
+    step: opts.step,
+    maxTokens: dynamicTokenLimit
+  })
   const started = Date.now()
   const resp = await client().chat.completions.create({
     model,
     messages,
     temperature: opts.temperature ?? 0.7,
-    // groq-sdk node currently uses max_tokens (maps to max_completion_tokens server-side)
-    max_tokens: opts.maxTokens ?? 1024,
+    // Dynamic token limit based on step complexity
+    max_tokens: dynamicTokenLimit,
     // For GPT-OSS reasoning models the Python example shows reasoning_effort; in JS SDK this is experimental.
     // We pass it through only if provided to avoid errors on models that don't support it.
     ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } as any : {}),
@@ -59,13 +85,21 @@ export async function *streamGroq(
 ): AsyncGenerator<string, string, void> {
   const correlationId = options.correlationId || generateId()
   const model = options.model || DEFAULT_GROQ_MODEL
-  logger.info('LLM stream start', { correlationId, model })
+  const dynamicTokenLimit = getTokenLimitForStep(options.step, options.maxTokens)
+  
+  logger.info('LLM stream start', { 
+    correlationId, 
+    model,
+    step: options.step,
+    maxTokens: dynamicTokenLimit
+  })
   let full = ''
   const stream = await client().chat.completions.create({
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 1024,
+    // Dynamic token limit based on step complexity
+    max_tokens: dynamicTokenLimit,
     stream: true,
     ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } as any : {}),
   } as any)

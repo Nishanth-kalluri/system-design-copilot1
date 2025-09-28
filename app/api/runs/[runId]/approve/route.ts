@@ -10,31 +10,41 @@ export async function POST(
   { params }: { params: { runId: string } }
 ) {
   try {
+    console.log('Approve route called for runId:', params.runId)
+    
     const session = await getServerSession(authConfig)
     if (!session?.user?.id) {
+      console.log('Approve: Unauthorized - no session')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { type } = await request.json()
+    console.log('Approve: Request type:', type)
     if (type !== 'PATCH') {
+      console.log('Approve: Invalid type, expected PATCH, got:', type)
       return NextResponse.json({ error: 'Invalid approval type' }, { status: 400 })
     }
 
     await connectDB()
 
     const run = await Run.findById(params.runId)
+    console.log('Approve: Run found:', !!run, 'User match:', run?.userId.toString() === session.user.id)
     if (!run || run.userId.toString() !== session.user.id) {
       return NextResponse.json({ error: 'Run not found' }, { status: 404 })
     }
 
     const pendingPatch = run.checkpoint?.pendingPatch
+    console.log('Approve: Pending patch exists:', !!pendingPatch)
     if (!pendingPatch) {
       return NextResponse.json({ error: 'No pending patch' }, { status: 400 })
     }
 
     // Validate patch
+    console.log('Approve: Validating patch:', JSON.stringify(pendingPatch, null, 2))
     const validation = validatePatch(pendingPatch)
+    console.log('Approve: Validation result:', validation)
     if (!validation.valid) {
+      console.log('Approve: Validation failed:', validation.error)
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
 
@@ -70,6 +80,15 @@ export async function POST(
     // Clear pending patch
     run.checkpoint = { ...run.checkpoint, pendingPatch: null }
     await run.save()
+
+    // Log patch application for debugging
+    console.log('Patch applied successfully:', {
+      runId: params.runId,
+      projectId: run.projectId,
+      newVersion,
+      elementCount: newElements.length,
+      patchLabel: pendingPatch.label || 'Untitled'
+    })
 
     const emitter = sseStore.get(params.runId)
     if (emitter) {

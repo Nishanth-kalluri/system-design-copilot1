@@ -28,14 +28,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Check for existing running run
-    let run = await Run.findOne({ 
+    // Find the most active running run (most recent update or has pending patch)
+    const runs = await Run.find({ 
       projectId, 
       userId: session.user.id, 
       status: 'RUNNING' 
-    })
+    }).sort({ updatedAt: -1 })
+    
+    // Prefer run with pending patch, then most recently updated
+    let run = runs.find(r => r.checkpoint?.pendingPatch) || runs[0]
 
     if (!run) {
+      // First, mark any other running runs as completed to avoid conflicts
+      await Run.updateMany(
+        { 
+          projectId, 
+          userId: session.user.id, 
+          status: 'RUNNING' 
+        },
+        { 
+          status: 'COMPLETED' 
+        }
+      )
+      
       run = new Run({
         projectId,
         userId: session.user.id,

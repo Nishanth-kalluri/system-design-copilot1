@@ -18,6 +18,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
   const [deepDiveNo, setDeepDiveNo] = useState(0)
   const [pendingPatch, setPendingPatch] = useState<any>(null)
   const [scene, setScene] = useState<any>(null)
+  const [sceneVersion, setSceneVersion] = useState<number>(0)
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
@@ -47,14 +48,28 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       if (!runRes.ok) throw new Error('Failed to create run')
       
       const { runId: newRunId } = await runRes.json()
-      console.log('=== RUN CREATED ===', { newRunId, projectId: params.projectId })
-      setRunId(newRunId)
+      console.log('=== RUN RESOLVED ===', { newRunId, projectId: params.projectId, currentRunId: runId })
+      
+      if (newRunId !== runId) {
+        console.log('RunId changed from', runId, 'to', newRunId)
+        setRunId(newRunId)
+        
+        // Important: If runId changes, stop existing polling and restart with new runId
+        if (pollerRef.current) {
+          console.log('Stopping existing poller due to runId change')
+          pollerRef.current.stop()
+          pollerRef.current = null
+        }
+      } else {
+        console.log('Using existing runId:', newRunId)
+      }
 
       // Load scene
       const sceneRes = await fetch(`/api/projects/${params.projectId}/scenes/latest`)
       if (sceneRes.ok) {
-        const { scene: sceneData } = await sceneRes.json()
+        const { scene: sceneData, version } = await sceneRes.json()
         setScene(sceneData)
+        setSceneVersion(version || 0)
       }
 
       // Load messages
@@ -67,8 +82,10 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
         console.error('Failed to load messages:', messagesRes.status, messagesRes.statusText)
       }
 
-      // Setup polling
+      // Setup polling - always setup with the resolved runId
       setupPolling(newRunId)
+      
+      console.log('Session initialization complete with runId:', newRunId)
       
       setLoading(false)
     } catch (error) {
@@ -90,8 +107,9 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       (newMessages) => {
         console.log('Polling received messages:', newMessages.length)
         setMessages(newMessages)
-        // Also update run status when messages update
+        // Also update run status and scene when messages update
         pollRunStatus(runId)
+        pollSceneUpdates()
       },
       (error) => {
         console.error('Polling error:', error)
@@ -104,21 +122,45 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
     poller.start()
     setConnected(true)
     
-    // Initial run status update
+    // Initial updates
     pollRunStatus(runId)
+    pollSceneUpdates()
   }
 
   const pollRunStatus = async (runId: string) => {
     try {
+      console.log('Polling run status for runId:', runId)
       const response = await fetch(`/api/runs/${runId}`)
       if (response.ok) {
         const { run } = await response.json()
+        console.log('Run status:', { step: run.step, deepDive: run.deepDiveNo, hasPatch: !!run.checkpoint?.pendingPatch })
         setCurrentStep(run.step)
         setDeepDiveNo(run.deepDiveNo)
         setPendingPatch(run.checkpoint?.pendingPatch || null)
       }
     } catch (error) {
       console.error('Run status polling error:', error)
+    }
+  }
+
+  const pollSceneUpdates = async () => {
+    try {
+      console.log('Polling scene updates, current version:', sceneVersion)
+      const response = await fetch(`/api/projects/${params.projectId}/scenes/latest`)
+      if (response.ok) {
+        const { scene: sceneData, version } = await response.json()
+        console.log('Scene poll response:', { currentVersion: sceneVersion, newVersion: version, elementCount: sceneData?.elements?.length })
+        if (version !== sceneVersion) {
+          console.log('Scene version changed:', { oldVersion: sceneVersion, newVersion: version })
+          setScene(sceneData)
+          setSceneVersion(version)
+        } else {
+          console.log('Scene version unchanged, forcing update anyway')
+          setScene({...sceneData}) // Force update even if version is same
+        }
+      }
+    } catch (error) {
+      console.error('Scene polling error:', error)
     }
   }
 
@@ -148,8 +190,9 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       })
       
       if (response.ok) {
-        // Force immediate update of run status and messages
+        // Force immediate update of run status, messages, and scene
         pollRunStatus(runId)
+        pollSceneUpdates()
         if (pollerRef.current) {
           pollerRef.current.forceUpdate()
         }
@@ -175,8 +218,9 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       })
       
       if (response.ok) {
-        // Force immediate update of run status and messages
+        // Force immediate update of run status, messages, and scene
         pollRunStatus(runId)
+        pollSceneUpdates()
         if (pollerRef.current) {
           pollerRef.current.forceUpdate()
         }
@@ -236,14 +280,36 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
 
 
   const handleApplyPatch = async () => {
-    if (!runId || !pendingPatch) return
+    if (!runId || !pendingPatch) {
+      console.log('Cannot apply patch:', { hasRunId: !!runId, hasPatch: !!pendingPatch })
+      return
+    }
+    
+    console.log('Applying patch to runId:', runId, 'patch:', pendingPatch.label)
     
     try {
-      await fetch(`/api/runs/${runId}/approve`, {
+      const response = await fetch(`/api/runs/${runId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'PATCH' }),
       })
+      
+      if (response.ok) {
+        console.log('Patch applied successfully')
+        // Clear pending patch immediately
+        setPendingPatch(null)
+        // Trigger immediate updates with a small delay to ensure DB write is complete
+        setTimeout(() => {
+          pollSceneUpdates()
+          pollRunStatus(runId)
+        }, 100)
+        if (pollerRef.current) {
+          pollerRef.current.forceUpdate()
+        }
+      } else {
+        const errorText = await response.text()
+        console.error('Patch application failed:', response.status, errorText)
+      }
     } catch (error) {
       console.error('Apply patch error:', error)
     }
@@ -304,6 +370,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
         {/* Center canvas */}
         <div className="flex-1">
           <CanvasPane
+            key={sceneVersion} // Force re-render when scene version changes
             scene={scene}
             projectId={params.projectId}
           />

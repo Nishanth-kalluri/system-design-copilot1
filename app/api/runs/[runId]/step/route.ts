@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authConfig } from '@/lib/auth'
-import { connectDB, Run, Message } from '@/lib/db'
+import { connectDB, Run, Message, SceneVersion } from '@/lib/db'
 import { executePrincipal } from '@/lib/agents/nodes/principal'
 import { getNextStep } from '@/lib/agents/graph'
 import { sseStore, broadcastMessage } from '@/lib/sse'
@@ -70,12 +70,18 @@ export async function POST(
       .limit(10)
     logger.info('Fetched recent messages', { correlationId, count: recentMessages.length })
 
+    // Load current scene state for LLM context
+    const latestScene = await SceneVersion.findOne({ projectId: run.projectId })
+      .sort({ version: -1 })
+    logger.info('Scene state loaded', { correlationId, hasScene: !!latestScene, elementCount: latestScene?.scene?.elements?.length || 0 })
+
     // Execute Principal agent
     const { textForTranscript, pendingPatch } = await executePrincipal(
       run.step,
       run.deepDiveNo,
       userInput,
       recentMessages,
+      latestScene?.scene,
       { runId: params.runId, correlationId }
     )
     logger.info('Principal message produced', { correlationId, textSnippet: textForTranscript.slice(0, 160), hasPatch: !!pendingPatch })
