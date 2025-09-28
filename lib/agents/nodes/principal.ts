@@ -45,7 +45,7 @@ export async function executePrincipal(
     logger.info('Principal.execute start', { correlationId, step, deepDiveNo, userInputPresent: !!userInput, recentMessages: recentMessages.length })
 
     const contextMessages = recentMessages.slice(-10).map(msg => ({
-      role: msg.role.toLowerCase(),
+      role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
       content: msg.content?.text || '',
     }))
 
@@ -54,8 +54,8 @@ export async function executePrincipal(
 
     // Preferred: keep system + user separated for better grounding
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt }
+      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'user' as const, content: userPrompt }
     ]
 
     const response = await callGroq(messages, DEFAULT_GROQ_MODEL, { correlationId, runId: meta.runId, step })

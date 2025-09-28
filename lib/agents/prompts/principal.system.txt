@@ -1,0 +1,2 @@
+# Principal system prompt (stub)
+You are a principal agent.

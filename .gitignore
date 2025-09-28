@@ -1,0 +1,148 @@
+############################
+# Core dependencies & builds
+############################
+node_modules/
+.pnp*
+.yarn/*
+!.yarn/releases/
+!.yarn/plugins/
+!.yarn/sdks/
+!.yarn/versions/
+
+# Next.js & build outputs
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+.swc/
+
+############################
+# Environment / secrets
+############################
+.env
+.env.*
+!.env.example
+!.env.local.example
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+############################
+# Logs & debugging
+############################
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+debug.log*
+
+############################
+# Coverage / reports
+############################
+coverage/
+.nyc_output/
+*.lcov
+
+############################
+# TypeScript / transpilation artifacts
+############################
+*.tsbuildinfo
+*.tgz
+
+############################
+# Caches
+############################
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.vite/
+.webpack/
+
+############################
+# Package managers
+############################
+# (Uncomment if you want to ignore lockfiles not in use)
+# yarn.lock
+# pnpm-lock.yaml
+# bun.lockb
+
+############################
+# Editors / IDE
+############################
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.iml
+.fleet/
+
+############################
+# OS / Misc junk
+############################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+*.swp
+*.swo
+*.orig
+*.rej
+
+############################
+# Archives / temp
+############################
+*.tar
+*.tar.gz
+*.gz
+*.zip
+*.7z
+*.rar
+tmp/
+temp/
+*.tmp
+
+############################
+# Images generated / exports (adjust if needed)
+############################
+*.excalidraw
+
+############################
+# Local tooling
+############################
+.husky/_/
+.commitlintrc.local.*
+
+############################
+# Storybook / Playwright / Cypress (if later added)
+############################
+storybook-static/
+playwright-report/
+blob-report/
+.playwright-cache/
+cypress/videos/
+cypress/screenshots/
+
+############################
+# Misc
+############################
+*.local
+*.private
+
+# Keep README & examples even if patterns above are broad
+!README.md
+
+############################
+# Tailwind JIT artifacts (rare, but defensive)
+############################
+*.tailwindcss-*
+
+# Lock in: do NOT ignore public assets
+!public/
+
