@@ -39,9 +39,12 @@ export function CanvasPane({ scene, projectId }: CanvasPaneProps) {
   useEffect(() => {
     if (excalidrawAPI && scene) {
       console.log('CanvasPane: Updating scene with', scene?.elements?.length || 0, 'elements, scene version:', scene?.version)
-      console.log('CanvasPane: Full scene object:', JSON.stringify(scene, null, 2))
       if (scene?.elements?.length > 0) {
-        console.log('CanvasPane: First element details:', JSON.stringify(scene.elements[0], null, 2))
+        console.log('CanvasPane: Element types and text:')
+        scene.elements.forEach((el: any, idx: number) => {
+          console.log(`  Element ${idx}: type=${el.type}, text="${el.text || 'NO TEXT'}", fontSize=${el.fontSize}, textAlign=${el.textAlign}, backgroundColor=${el.backgroundColor}`)
+        })
+        console.log('CanvasPane: First element full details:', JSON.stringify(scene.elements[0], null, 2))
       }
       try {
         excalidrawAPI.updateScene(scene)

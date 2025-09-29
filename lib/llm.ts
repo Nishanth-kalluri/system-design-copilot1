@@ -38,9 +38,9 @@ function getTokenLimitForStep(step?: string, fallbackTokens?: number): number {
   const complexSteps = ['API', 'HLD', 'DEEPDIVE', 'CONCLUSION']
   
   if (step && earlySteps.includes(step)) {
-    return 2048 // 2K tokens for early steps
+    return 4096 // 2K tokens for early steps
   } else if (step && complexSteps.includes(step)) {
-    return 8192 // 8K tokens for complex steps with patches
+    return 16384 // 8K tokens for complex steps with patches
   }
   
   return 4096 // Default fallback

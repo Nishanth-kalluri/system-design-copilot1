@@ -1,4 +1,4 @@
-import { createBasicElement } from './excali'
+import { createBasicElement, createShapeWithText } from './excali'
 
 export type Patch = {
   adds?: any[]
@@ -8,8 +8,8 @@ export type Patch = {
 }
 
 const ALLOWED_TYPES = ['rectangle', 'ellipse', 'diamond', 'arrow', 'text']
-const MAX_ELEMENTS = 25 // Allow up to 25 elements for comprehensive system design diagrams
-const MAX_TEXT_LENGTH = 500 // Allow longer text for detailed entity descriptions
+const MAX_ELEMENTS = 1000 // Allow up to 25 elements for comprehensive system design diagrams
+const MAX_TEXT_LENGTH = 5000 // Allow longer text for detailed entity descriptions
 const COORD_MIN = -5000
 const COORD_MAX = 5000
 
@@ -97,14 +97,14 @@ export function applyPatch(elements: any[], patch: Patch): any[] {
 
   // Add new elements with proper Excalidraw formatting
   if (patch.adds) {
-    const formattedElements = patch.adds.map(element => formatExcalidrawElement(element))
+    const formattedElements = patch.adds.flatMap(element => formatExcalidrawElement(element))
     result.push(...formattedElements)
   }
 
   return result
 }
 
-function formatExcalidrawElement(element: any): any {
+function formatExcalidrawElement(element: any): any[] {
   const x = element.x || 0
   const y = element.y || 0
   const width = element.width || 100
@@ -112,37 +112,31 @@ function formatExcalidrawElement(element: any): any {
   const text = element.text || ''
   
   // Use the proper createBasicElement function from excali.ts
-  let excalidrawElement: any
+  let excalidrawElements: any[]
   
   if (element.type === 'text') {
-    excalidrawElement = createBasicElement('text', x, y, width, height, text)
+    const textElement = createBasicElement('text', x, y, width, height, text)
+    if (element.id) {
+      textElement.id = element.id
+    }
+    excalidrawElements = [textElement]
   } else if (element.type === 'arrow') {
-    excalidrawElement = createBasicElement('arrow', x, y, width, height)
-    // Add text properties for arrows if text exists
-    if (text) {
-      excalidrawElement.text = text
-      excalidrawElement.fontSize = 16
-      excalidrawElement.fontFamily = 1
-      excalidrawElement.textAlign = 'center'
-      excalidrawElement.verticalAlign = 'middle'
+    const arrowElement = createBasicElement('arrow', x, y, width, height, text)
+    if (element.id) {
+      arrowElement.id = element.id
     }
+    excalidrawElements = [arrowElement]
   } else {
-    // For rectangles, ellipses, diamonds
-    excalidrawElement = createBasicElement(element.type, x, y, width, height)
-    // Add text properties for shapes with text
-    if (text) {
-      excalidrawElement.text = text
-      excalidrawElement.fontSize = 16
-      excalidrawElement.fontFamily = 1
-      excalidrawElement.textAlign = 'center'
-      excalidrawElement.verticalAlign = 'middle'
+    // For rectangles, ellipses, diamonds - use createShapeWithText for proper text binding
+    const shapeElements = createShapeWithText(element.type, x, y, width, height, text)
+    
+    // Override the shape id if provided
+    if (element.id && shapeElements.length > 0) {
+      shapeElements[0].id = element.id
     }
+    
+    excalidrawElements = shapeElements
   }
   
-  // Override the id if provided
-  if (element.id) {
-    excalidrawElement.id = element.id
-  }
-  
-  return excalidrawElement
+  return excalidrawElements
 }
