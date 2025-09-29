@@ -44,7 +44,7 @@ export async function connectDB() {
 
 // Enums
 export type RunStatus = 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'ERROR'
-export type Step = 'REQUIREMENTS' | 'FNFRS' | 'ENTITIES' | 'API' | 'HLD' | 'DEEPDIVE' | 'CONCLUSION'
+export type Step = 'INITIAL_DESIGN' | 'HLD' | 'DEEPDIVE' | 'CONCLUSION'
 export type Role = 'USER' | 'PRINCIPAL' | 'SYSTEM'
 
 // Schemas
@@ -74,8 +74,8 @@ const RunSchema = new mongoose.Schema({
   },
   step: { 
     type: String, 
-    enum: ['REQUIREMENTS', 'FNFRS', 'ENTITIES', 'API', 'HLD', 'DEEPDIVE', 'CONCLUSION'], 
-    default: 'REQUIREMENTS' 
+    enum: ['INITIAL_DESIGN', 'HLD', 'DEEPDIVE', 'CONCLUSION'], 
+    default: 'INITIAL_DESIGN' 
   },
   deepDiveNo: { type: Number, default: 0 },
   checkpoint: mongoose.Schema.Types.Mixed,

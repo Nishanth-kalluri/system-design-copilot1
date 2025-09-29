@@ -14,7 +14,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
   const router = useRouter()
   const [runId, setRunId] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
-  const [currentStep, setCurrentStep] = useState('REQUIREMENTS')
+  const [currentStep, setCurrentStep] = useState('INITIAL_DESIGN')
   const [deepDiveNo, setDeepDiveNo] = useState(0)
   const [pendingPatch, setPendingPatch] = useState<any>(null)
   const [scene, setScene] = useState<any>(null)
@@ -208,13 +208,13 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
   }
 
   const handleDeepDive = async () => {
-    if (!runId || deepDiveNo > 0) return
+    if (!runId || deepDiveNo >= 3) return
     
     try {
       const response = await fetch(`/api/runs/${runId}/step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'DEEP_DIVE_ONCE' }),
+        body: JSON.stringify({ action: 'ADD_DEEP_DIVE' }),
       })
       
       if (response.ok) {

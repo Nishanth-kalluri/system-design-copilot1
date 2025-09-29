@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         projectId,
         userId: session.user.id,
         status: 'RUNNING',
-        step: 'REQUIREMENTS',
+        step: 'INITIAL_DESIGN',
         deepDiveNo: 0,
         checkpoint: {},
       })

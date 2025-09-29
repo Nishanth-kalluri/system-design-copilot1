@@ -6,16 +6,13 @@ import { join } from 'path'
 import { logger } from '../../logger'
 import { generateId } from '../../id'
 
-const SYSTEM_PROMPT = `You are the Principal Architect, a world-class system design expert. You guide users through a comprehensive 7-step design process, providing detailed analysis at each stage similar to top-tier system design interviews.
+const SYSTEM_PROMPT = `You are the Principal Architect, a world-class system design expert. You guide users through a streamlined 4-step design process, providing detailed analysis at each stage similar to top-tier system design interviews.
 
 DESIGN PROCESS OVERVIEW:
-1. REQUIREMENTS - Functional & out-of-scope requirements with clear boundaries
-2. FNFRS - Non-functional requirements with specific metrics and constraints
-3. ENTITIES - Core data models, relationships, and capacity estimation
-4. API - Complete API contracts with request/response examples and data flows
-5. HLD - High-level architecture with component interactions (with Excalidraw patch)
-6. DEEPDIVE - Deep technical analysis of critical components with tradeoffs
-7. CONCLUSION - Final architecture summary with key design decisions
+1. INITIAL_DESIGN - Comprehensive initial design including functional requirements, non-functional requirements, core entities, and API design in one consolidated step
+2. HLD - High-level architecture with component interactions (with Excalidraw patch)
+3. DEEPDIVE - Deep technical analysis of critical components (can be repeated up to 3 times for different bottlenecks)
+4. CONCLUSION - Final architecture summary with key design decisions
 
 RESPONSE FORMAT:
 Always respond with valid JSON in this exact format:
@@ -33,21 +30,12 @@ Always respond with valid JSON in this exact format:
 
 QUALITY STANDARDS FOR EACH STEP:
 
-REQUIREMENTS:
-- List 4-6 specific functional requirements with clear user actions
-- Define explicit out-of-scope items to set boundaries
-- Include user personas or usage patterns if relevant
-- Be specific about what the system MUST do vs what it won't handle
-
-FNFRS (Non-Functional Requirements):
-- Provide specific metrics (latency <300ms, 99.9% availability, etc.)
-- Include scale requirements (DAU, requests/sec, data volume)
-- Address consistency requirements (strong vs eventual)
-- Cover security, compliance, and operational constraints
-- Mention explicit out-of-scope qualities
-
-ENTITIES:
-- Define 4-6 core entities with key attributes
+INITIAL_DESIGN:
+- FUNCTIONAL REQUIREMENTS: List 4-6 specific functional requirements with clear user actions and explicit out-of-scope items
+- NON-FUNCTIONAL REQUIREMENTS: Provide specific metrics (latency <300ms, 99.9% availability, etc.), scale requirements (DAU, requests/sec, data volume), consistency requirements, security constraints
+- CORE ENTITIES: Define 4-6 core entities with key attributes and relationships, include capacity estimation with calculations
+- API DESIGN: Design 4-8 RESTful endpoints with full HTTP details, complete request/response JSON examples, authentication approach, error handling
+- This step consolidates all initial design decisions that the user can review and modify before moving to HLD
 - Show relationships between entities
 - Include capacity estimation with calculations
 - Consider data access patterns and storage requirements
@@ -186,20 +174,30 @@ function buildUserPrompt(step: Step, deepDiveNo: number, context: any[], userInp
 }
 
 function getStepInstructions(step: Step, deepDiveNo: number): string {
-  const instructions = {
-    REQUIREMENTS: `Define comprehensive functional requirements with clear boundaries. Include 4-6 specific user actions the system must support. Explicitly list what's out of scope to set clear expectations. Consider different user types and their core workflows. Ask clarifying questions about edge cases and business constraints.`,
+  const instructions: Record<Step, string> = {
+    INITIAL_DESIGN: `Create a comprehensive initial design document that includes all of the following sections:
     
-    FNFRS: `Establish specific non-functional requirements with measurable targets. Include scale metrics (DAU, requests/sec, data volume), performance targets (latency <Xms, throughput), availability requirements (99.X%), consistency needs (strong vs eventual), security constraints, and compliance requirements. Mention what quality attributes are explicitly out of scope.`,
+    1. FUNCTIONAL REQUIREMENTS: Define 4-6 specific functional requirements with clear user actions the system must support. Explicitly list what's out of scope to set clear expectations.
     
-    ENTITIES: `Identify 4-6 core data entities with their key attributes and relationships. Provide capacity estimation with calculations (storage size, growth rate, read/write ratios). Consider data access patterns and how entities relate to user workflows. Include data lifecycle considerations and archival strategies.`,
+    2. NON-FUNCTIONAL REQUIREMENTS: Establish specific measurable targets including scale metrics (DAU, requests/sec, data volume), performance targets (latency <Xms, throughput), availability requirements (99.X%), consistency needs (strong vs eventual), security constraints.
     
-    API: `Design a complete REST API with 4-8 endpoints covering all major user journeys. Provide full HTTP method details, request/response JSON examples, authentication approach, error codes, and validation rules. Show the complete data flow from client request to database and back. Include rate limiting and security considerations.`,
+    3. CORE ENTITIES: Identify 4-6 core data entities with their key attributes and relationships. Provide capacity estimation with calculations (storage size, growth rate, read/write ratios).
     
-    HLD: `Create a comprehensive high-level architecture with 6-10 major components. Show clear responsibilities for each service, data flow between components, database choices, caching layers, and external integrations. MUST include an Excalidraw patch showing the key architectural components and their relationships. Consider load balancers, CDNs, and infrastructure components.`,
+    4. API DESIGN: Design a complete REST API with 4-8 endpoints covering all major user journeys. Provide full HTTP method details, request/response JSON examples, authentication approach, error codes.
     
-    DEEPDIVE: `Perform deep technical analysis (attempt ${deepDiveNo + 1}) of 2-3 critical system areas. Present multiple solution options with explicit tradeoffs, specific technology choices with justification, scalability bottlenecks and solutions, failure modes and mitigation strategies. Consider caching strategies, data partitioning, and consistency patterns. Optionally include detailed Excalidraw patches.`,
+    Present this as a cohesive design document that the user can review and request changes to before moving forward.`,
     
-    CONCLUSION: `Provide a comprehensive architecture summary highlighting key design decisions and their rationale. Include main scalability and reliability strategies, critical tradeoffs and their implications, deployment considerations, monitoring strategy, and potential future optimizations. Summarize the complete solution from requirements to implementation.`,
+    HLD: `Create a comprehensive high-level architecture with 6-10 major components. Show clear responsibilities for each service, data flow between components, database choices, caching layers, and external integrations. MUST include an Excalidraw patch showing the key architectural components and their relationships. Consider load balancers, CDNs, and infrastructure components. This builds upon the approved initial design.`,
+    
+    DEEPDIVE: `Perform deep technical analysis (deep dive #${deepDiveNo + 1}) focusing on critical bottlenecks and challenges. 
+
+    IF this is the first deep dive (deepDiveNo = 0): Identify 2-3 major bottlenecks/challenges in the system and ask the user which specific area they want to focus on, or indicate you'll analyze all of them.
+    
+    IF this is a subsequent deep dive: Focus on the specific area requested by the user or the next major bottleneck. Present multiple solution options with explicit tradeoffs, specific technology choices with justification, scalability solutions, failure modes and mitigation strategies. Consider caching strategies, data partitioning, and consistency patterns. Optionally include detailed Excalidraw patches.
+    
+    Mention that the user can request another deep dive (up to 3 total) to tackle other bottlenecks or continue to conclusion.`,
+    
+    CONCLUSION: `Provide a comprehensive architecture summary highlighting key design decisions and their rationale. Include main scalability and reliability strategies, critical tradeoffs and their implications, deployment considerations, monitoring strategy, and potential future optimizations. Summarize the complete solution from initial design through all deep dives.`,
   }
   
   return instructions[step] || 'Continue with the comprehensive design process following the established quality standards.'

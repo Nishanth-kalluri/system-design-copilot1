@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authConfig } from '@/lib/auth'
 import { connectDB, Run, Message, SceneVersion } from '@/lib/db'
 import { executePrincipal } from '@/lib/agents/nodes/principal'
-import { getNextStep } from '@/lib/agents/graph'
+import { getNextStep, canAddDeepDive } from '@/lib/agents/graph'
 import { sseStore, broadcastMessage } from '@/lib/sse'
 import { logger } from '@/lib/logger'
 import { generateId } from '@/lib/id'
@@ -120,13 +120,15 @@ export async function POST(
       const calculated = getNextStep(run.step, run.deepDiveNo)
       if (calculated) {
         nextStep = calculated
+        // Increment deep dive number when entering DEEPDIVE step
         if (calculated === 'DEEPDIVE') {
           newDeepDiveNo = run.deepDiveNo + 1
         }
       }
-    } else if (action === 'DEEP_DIVE_ONCE' && run.deepDiveNo === 0) {
+    } else if (action === 'ADD_DEEP_DIVE' && run.step === 'DEEPDIVE' && run.deepDiveNo < 3) {
+      // Stay in DEEPDIVE step but increment the number
       nextStep = 'DEEPDIVE'
-      newDeepDiveNo = 1
+      newDeepDiveNo = run.deepDiveNo + 1
     }
     logger.info('Step progression decision', { correlationId, prevStep: run.step, nextStep, prevDeepDive: run.deepDiveNo, newDeepDiveNo })
 
