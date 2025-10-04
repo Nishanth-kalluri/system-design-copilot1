@@ -123,21 +123,46 @@ function getElementDimensions(type: string): { width: number; height: number } {
 }
 
 function createArrow(source: PositionedElement, target: PositionedElement): PositionedElement {
-  const sourceX = source.x + source.width / 2
-  const sourceY = source.y + source.height / 2
-  const targetX = target.x + target.width / 2
-  const targetY = target.y + target.height / 2
+  // Calculate connection points based on element edges, not centers
+  let startX, startY, endX, endY
   
-  // Calculate arrow position and dimensions
-  const deltaX = targetX - sourceX
-  const deltaY = targetY - sourceY
+  // If target is below source (normal flow), connect bottom of source to top of target
+  if (target.y > source.y) {
+    startX = source.x + source.width / 2
+    startY = source.y + source.height
+    endX = target.x + target.width / 2
+    endY = target.y
+  } 
+  // If target is above source, connect top of source to bottom of target
+  else if (target.y < source.y) {
+    startX = source.x + source.width / 2
+    startY = source.y
+    endX = target.x + target.width / 2
+    endY = target.y + target.height
+  }
+  // If on same level, connect side to side
+  else {
+    if (target.x > source.x) {
+      startX = source.x + source.width
+      startY = source.y + source.height / 2
+      endX = target.x
+      endY = target.y + target.height / 2
+    } else {
+      startX = source.x
+      startY = source.y + source.height / 2
+      endX = target.x + target.width
+      endY = target.y + target.height / 2
+    }
+  }
   
-  // Position arrow at source center, with width/height as the delta to target
+  const deltaX = endX - startX
+  const deltaY = endY - startY
+  
   return {
     id: `arrow_${source.id}_to_${target.id}`,
     type: 'arrow',
-    x: sourceX,
-    y: sourceY,
+    x: startX,
+    y: startY,
     width: deltaX,
     height: deltaY,
     text: ''
@@ -186,8 +211,56 @@ export function generateLayoutFromPattern(
         type: elementType,
         text: name,
         layer: layer as any,
-        connectsTo: generateConnectionsForElement(name, layer, elements)
+        connectsTo: [] // Will be populated later
       })
+    })
+  })
+  
+  // Generate connections after all elements are created
+  elements.forEach(element => {
+    element.connectsTo = generateConnectionsForElement(element.text, element.layer!, elements)
+  })
+  
+  return elements
+}
+
+// Helper to generate automatic arrows based on layer relationships
+export function generateAutoConnections(elements: LayoutElement[]): LayoutElement[] {
+  const connections: LayoutElement[] = []
+  const elementsByLayer = elements.reduce((acc, el) => {
+    if (!acc[el.layer!]) acc[el.layer!] = []
+    acc[el.layer!].push(el)
+    return acc
+  }, {} as Record<string, LayoutElement[]>)
+  
+  // Generate standard flow connections
+  const layerFlow = ['frontend', 'api', 'service', 'data']
+  
+  for (let i = 0; i < layerFlow.length - 1; i++) {
+    const currentLayer = elementsByLayer[layerFlow[i]]
+    const nextLayer = elementsByLayer[layerFlow[i + 1]]
+    
+    if (currentLayer && nextLayer) {
+      // Connect first element of each layer to first element of next layer
+      if (currentLayer[0] && nextLayer[0]) {
+        currentLayer[0].connectsTo = currentLayer[0].connectsTo || []
+        currentLayer[0].connectsTo.push(nextLayer[0].id)
+      }
+    }
+  }
+  
+  // Connect services to external components where appropriate
+  const services = elementsByLayer.service || []
+  const external = elementsByLayer.external || []
+  
+  services.forEach(service => {
+    external.forEach(ext => {
+      if (ext.text.toLowerCase().includes('cdn') || 
+          ext.text.toLowerCase().includes('s3') ||
+          (service.text.toLowerCase().includes('media') && ext.text.toLowerCase().includes('storage'))) {
+        service.connectsTo = service.connectsTo || []
+        service.connectsTo.push(ext.id)
+      }
     })
   })
   

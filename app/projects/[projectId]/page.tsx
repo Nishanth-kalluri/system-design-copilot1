@@ -22,6 +22,14 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [conversationWidth, setConversationWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('conversationPanelWidth')
+      return saved ? parseInt(saved, 10) : 320
+    }
+    return 320 // Default 320px (w-80)
+  })
+  const [isResizing, setIsResizing] = useState(false)
   const pollerRef = useRef<MessagePoller | null>(null)
   const MAX_MESSAGES = 500 // prevent unbounded growth in client memory
 
@@ -336,6 +344,70 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
     }
   }
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true)
+    e.preventDefault()
+  }
+
+  const handleDoubleClick = () => {
+    const defaultWidth = 320
+    setConversationWidth(defaultWidth)
+    localStorage.setItem('conversationPanelWidth', defaultWidth.toString())
+  }
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing) return
+    
+    const containerWidth = window.innerWidth
+    const newWidth = containerWidth - e.clientX
+    const minWidth = 250 // Minimum width
+    const maxWidth = containerWidth * 0.6 // Maximum 60% of screen
+    
+    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+    setConversationWidth(clampedWidth)
+    
+    // Save to localStorage
+    localStorage.setItem('conversationPanelWidth', clampedWidth.toString())
+  }
+
+  const handleMouseUp = () => {
+    setIsResizing(false)
+  }
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+    }
+  }, [isResizing])
+
+  // Keyboard shortcut to toggle panel sizes
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '[') {
+        e.preventDefault()
+        // Toggle between small (250px), medium (400px), and large (600px)
+        const sizes = [250, 400, 600]
+        const currentIndex = sizes.findIndex(size => Math.abs(size - conversationWidth) < 50)
+        const nextSize = sizes[(currentIndex + 1) % sizes.length]
+        setConversationWidth(nextSize)
+        localStorage.setItem('conversationPanelWidth', nextSize.toString())
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [conversationWidth])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -355,7 +427,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       />
       
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left sidebar */}
         <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
           <Stepper
@@ -368,7 +440,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
         </div>
         
         {/* Center canvas */}
-        <div className="flex-1">
+        <div className="flex-1" style={{ marginRight: conversationWidth }}>
           <CanvasPane
             key={sceneVersion} // Force re-render when scene version changes
             scene={scene}
@@ -376,13 +448,54 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
           />
         </div>
         
-        {/* Right sidebar */}
-        <div className="w-80 bg-white border-l border-gray-200">
-          <Transcript
-            messages={messages}
-            onUserInput={handleUserInput}
-            isLoading={processing}
-          />
+        {/* Resize handle */}
+        <div
+          className={`w-2 cursor-col-resize transition-all duration-150 group ${
+            isResizing ? 'bg-blue-500' : 'bg-gray-300 hover:bg-blue-400'
+          }`}
+          onMouseDown={handleMouseDown}
+          onDoubleClick={handleDoubleClick}
+          title="Drag to resize | Double-click to reset | Ctrl+[ to cycle sizes"
+          style={{ 
+            position: 'absolute',
+            right: conversationWidth,
+            top: 0,
+            bottom: 0,
+            zIndex: 10
+          }}
+        >
+          {/* Visual grip indicator */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-8 flex flex-col justify-center space-y-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-0.5 h-0.5 bg-white rounded-full mx-auto"></div>
+            <div className="w-0.5 h-0.5 bg-white rounded-full mx-auto"></div>
+            <div className="w-0.5 h-0.5 bg-white rounded-full mx-auto"></div>
+            <div className="w-0.5 h-0.5 bg-white rounded-full mx-auto"></div>
+          </div>
+        </div>
+        
+        {/* Right sidebar - Conversation Panel */}
+        <div 
+          className="bg-white border-l border-gray-200" 
+          style={{ 
+            width: conversationWidth,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0
+          }}
+        >
+          {/* Panel header with resize info */}
+          <div className="px-3 py-1 border-b border-gray-200 text-xs text-gray-500 flex justify-between items-center">
+            <span>Design Conversation</span>
+            <span className="text-xs opacity-60">Ctrl+[ to resize</span>
+          </div>
+          <div style={{ height: 'calc(100% - 28px)' }}>
+            <Transcript
+              messages={messages}
+              onUserInput={handleUserInput}
+              isLoading={processing}
+            />
+          </div>
         </div>
       </div>
     </div>

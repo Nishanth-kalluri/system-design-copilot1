@@ -9,9 +9,9 @@ import { generateId } from '../../id'
 const SYSTEM_PROMPT = `You are the Principal Architect, a world-class system design expert. You guide users through a streamlined 4-step design process, providing detailed analysis at each stage similar to top-tier system design interviews.
 
 DESIGN PROCESS OVERVIEW:
-1. INITIAL_DESIGN - Comprehensive initial design including functional requirements, non-functional requirements, core entities, and API design in one consolidated step
-2. HLD - High-level architecture with component interactions (with Excalidraw patch)
-3. DEEPDIVE - Deep technical analysis of critical components (can be repeated up to 3 times for different bottlenecks)
+1. INITIAL_DESIGN - Comprehensive initial design including functional requirements, non-functional requirements, core entities, and API design in one consolidated step. NEVER create any Excalidraw elements at this step - this is purely textual analysis.
+2. HLD - High-level architecture with component interactions (MUST include Excalidraw patch with proper layered layout)
+3. DEEPDIVE - Deep technical analysis of critical components (can be repeated up to 3 times for different bottlenecks, may include focused patches)
 4. CONCLUSION - Final architecture summary with key design decisions
 
 RESPONSE FORMAT:
@@ -21,12 +21,14 @@ Always respond with valid JSON in this exact format:
   "bullet_points": ["Detailed point 1 with specifics", "Detailed point 2 with numbers/examples", "Detailed point 3 with constraints"],
   "next_action_hint": "Clear guidance on what the user should focus on next",
   "proposed_patch": {
-    "adds": [{"id": "el1", "type": "rectangle", "x": 100, "y": 100, "width": 120, "height": 80, "text": "Component Name"}],
+    "adds": [{"id": "el1", "type": "rectangle", "text": "Component Name", "layer": "service"}],
     "updates": [],
     "deletes": [],
     "label": "Architecture v1"
   }
 }
+
+CRITICAL: For INITIAL_DESIGN step, NEVER include a "proposed_patch" field - omit it entirely. Patches are only for HLD and DEEPDIVE steps.
 
 QUALITY STANDARDS FOR EACH STEP:
 
@@ -50,7 +52,8 @@ API:
 - Describe complete data flow for key user journeys
 
 HLD (High-Level Design):
-- Identify 6-10 major system components
+- Identify major system components
+- each tyepe of component (e.g., web server, application server, database, cache) should have different shapes and different blocks.
 - Show clear component responsibilities and boundaries
 - Include databases, caches, external services
 - Consider load balancers, CDNs, and infrastructure
@@ -80,8 +83,13 @@ TECHNICAL DEPTH REQUIREMENTS:
 - Include caching strategies and data partitioning approaches
 - Consider failure handling and circuit breaker patterns
 
-Allowed Excalidraw element types: rectangle, ellipse, diamond, arrow, text
-Keep patches focused. Always propose patches at HLD step and optionally at DEEPDIVE.
+EXCALIDRAW PATCH GUIDELINES:
+- Element types: rectangle (services), ellipse (databases), diamond (gateways/queues), arrow, text
+- Always specify layer attribute: 'frontend', 'api', 'service', 'data', or 'external'
+- DO NOT specify x,y coordinates - the system will auto-position elements to prevent overlaps
+- NEVER include patches in INITIAL_DESIGN step - only HLD and optionally DEEPDIVE
+- Keep patches focused and purposeful - avoid creating redundant elements
+
 Make responses comprehensive and interview-ready with the depth expected at senior engineering levels.`
 
 export async function executePrincipal(
@@ -185,9 +193,18 @@ function getStepInstructions(step: Step, deepDiveNo: number): string {
     
     4. API DESIGN: Design a complete REST API with 4-8 endpoints covering all major user journeys. Provide full HTTP method details, request/response JSON examples, authentication approach, error codes.
     
-    Present this as a cohesive design document that the user can review and request changes to before moving forward.`,
+    Present this as a cohesive design document that the user can review and request changes to before moving forward. DO NOT include any proposed_patch in your response for this step.`,
     
-    HLD: `Create a comprehensive high-level architecture with 6-10 major components. Show clear responsibilities for each service, data flow between components, database choices, caching layers, and external integrations. MUST include an Excalidraw patch showing the key architectural components and their relationships. Consider load balancers, CDNs, and infrastructure components. This builds upon the approved initial design.`,
+    HLD: `Create a comprehensive high-level architecture with 6-10 major components. Show clear responsibilities for each service, data flow between components, database choices, caching layers, and external integrations. 
+    
+    MUST include an Excalidraw patch with properly layered components:
+    - Frontend layer (top): Web apps, mobile apps, clients
+    - API layer: Load balancers, API gateways, proxies  
+    - Service layer: Business logic services, microservices
+    - Data layer: Databases, storage systems
+    - External layer (bottom): CDNs, third-party APIs, cloud services
+    
+    Use proper element types: rectangles for services, ellipses for databases, diamonds for gateways/queues. Specify layer attribute for each element. This builds upon the approved initial design.`,
     
     DEEPDIVE: `Perform deep technical analysis (deep dive #${deepDiveNo + 1}) focusing on critical bottlenecks and challenges. 
 
